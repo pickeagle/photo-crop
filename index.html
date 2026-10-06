@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ครอบ &amp; ปรับขนาดรูปภาพ</title>
+<style>
+  :root{
+    --bg:#17181a;
+    --panel:#1f2123;
+    --panel-border:#2c2f33;
+    --text:#ece9e2;
+    --text-dim:#94989c;
+    --accent:#e8a33d;
+    --accent-dim:#c98a2c;
+    --accent-ink:#1a1400;
+    --mono: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    padding:28px 16px 60px;
+  }
+  .app-shell{max-width:1300px;margin:0 auto;}
+  header{margin-bottom:26px;}
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    color:var(--accent);
+    text-transform:uppercase;
+    margin:0 0 8px;
+  }
+  h1{font-size:22px;margin:0 0 6px;font-weight:650;letter-spacing:-.01em;}
+  .sub{color:var(--text-dim);font-size:13.5px;line-height:1.5;margin:0;max-width:70ch;}
+
+  .steps{display:flex;gap:8px;margin:22px 0 18px;}
+  .step-pill{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.04em;
+    padding:6px 12px;
+    border-radius:999px;
+    border:1px solid var(--panel-border);
+    color:var(--text-dim);
+    background:var(--panel);
+  }
+  .step-pill.active{border-color:var(--accent);color:var(--accent);}
+  .step-pill.done{color:var(--text);border-color:#3a3d41;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    padding:22px;
+    margin-bottom:16px;
+  }
+  #importSection, #resultSection{max-width:640px;margin-left:auto;margin-right:auto;}
+  .hidden{display:none !important;}
+
+  .drop-zone{
+    border:1.5px dashed #3a3d41;
+    border-radius:10px;
+    padding:44px 20px;
+    text-align:center;
+    color:var(--text-dim);
+    font-size:13.5px;
+  }
+  .drop-zone svg{margin-bottom:10px;opacity:.7;}
+  .drop-zone .hint{font-size:12px;color:var(--text-dim);margin-top:10px;}
+  kbd{
+    font-family:var(--mono);
+    font-size:11px;
+    border:1px solid #3a3d41;
+    border-bottom-width:2px;
+    border-radius:4px;
+    padding:1px 6px;
+    color:var(--text);
+    background:#2a2c2f;
+  }
+
+  button{
+    font-family:var(--sans);
+    font-size:13.5px;
+    font-weight:600;
+    padding:10px 18px;
+    border-radius:7px;
+    border:1px solid transparent;
+    cursor:pointer;
+    transition:opacity .15s ease, transform .1s ease;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);}
+  .btn-primary:disabled{opacity:.35;cursor:not-allowed;}
+  .btn-primary:not(:disabled):hover{background:var(--accent-dim);}
+  .btn-ghost{background:transparent;color:var(--text);border-color:var(--panel-border);}
+  .btn-ghost:hover{border-color:#4a4e53;}
+  .btn-ghost.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+
+  .info-line{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--text-dim);
+    margin:0 0 14px;
+  }
+  .info-line b{color:var(--text);font-weight:600;}
+
+  #editCanvasWrap{
+    overflow:auto;
+    border-radius:6px;
+    line-height:0;
+    background:
+      repeating-conic-gradient(#2a2c2f 0% 25%, #232527 0% 50%) 50% / 16px 16px;
+    display:inline-block;
+    max-width:100%;
+  }
+  #editCanvas{display:block;touch-action:none;cursor:crosshair;}
+
+  #resultCanvasWrap{
+    overflow:auto;
+    border-radius:6px;
+    display:inline-block;
+    background:
+      repeating-conic-gradient(#2a2c2f 0% 25%, #232527 0% 50%) 50% / 16px 16px;
+    padding:1px;
+    border:1px solid var(--panel-border);
+  }
+  #resultCanvas{display:block;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;}
+
+  .note{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:14px;
+    line-height:1.5;
+  }
+  input[type=file]{display:none;}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header>
+    <p class="eyebrow">Pixel-precise crop tool</p>
+    <h1>ครอบ &amp; ปรับขนาดรูปภาพ</h1>
+    <p class="sub">นำเข้ารูป → ลากเลือกพื้นที่ที่ต้องการครอบ → ระบบปรับขนาดให้ไม่เกิน 300×220 px โดยรักษาสัดส่วนเดิม → ดาวน์โหลดเป็น PNG</p>
+  </header>
+
+  <div class="steps">
+    <span class="step-pill active" id="pill1">01 นำเข้ารูป</span>
+    <span class="step-pill" id="pill2">02 ครอบรูป</span>
+    <span class="step-pill" id="pill3">03 ผลลัพธ์</span>
+  </div>
+
+  <!-- STEP 1: IMPORT -->
+  <section class="panel" id="importSection">
+    <div class="drop-zone">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#e8a33d" stroke-width="1.6"><path d="M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5"/><path d="M7 9l5-5 5 5"/><path d="M12 4v13"/></svg>
+      <div>ยังไม่ได้เลือกรูป</div>
+      <div class="hint">หรือกด <kbd>Ctrl</kbd>+<kbd>V</kbd> (<kbd>Cmd</kbd>+<kbd>V</kbd> บน Mac) เพื่อวางรูปที่คัดลอกไว้</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="importBtn">นำเข้ารูป (Import)</button>
+      <button class="btn-ghost" id="pasteBtn">วางจากคลิปบอร์ด (Paste)</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*">
+  </section>
+
+  <!-- STEP 2: CROP -->
+  <section class="panel hidden" id="cropSection">
+    <p class="info-line" id="originalInfo">ต้นฉบับ: —</p>
+    <div id="editCanvasWrap"><canvas id="editCanvas"></canvas></div>
+    <p class="info-line" id="selectionInfo" style="margin-top:12px;">ลากเมาส์ (หรือแตะค้างแล้วลาก) เพื่อเลือกพื้นที่ที่จะครอบ — ถ้ารูปนี้ไม่ต้องครอบ กด "ใช้รูปเต็ม" ได้เลย</p>
+    <div class="btn-row">
+      <button class="btn-primary" id="confirmCropBtn" disabled>ยืนยันครอบรูป</button>
+      <button class="btn-ghost" id="useFullImageBtn">ใช้รูปเต็ม (ไม่ครอบ)</button>
+      <button class="btn-ghost" id="clearSelectionBtn">ล้างพื้นที่เลือก</button>
+      <button class="btn-ghost" id="restartFromCropBtn">เลือกรูปใหม่</button>
+    </div>
+  </section>
+
+  <!-- STEP 3: RESULT -->
+  <section class="panel hidden" id="resultSection">
+    <p class="info-line" id="resultInfo">ขนาดผลลัพธ์: —</p>
+    <div id="resultCanvasWrap"><canvas id="resultCanvas"></canvas></div>
+    <div class="btn-row">
+      <button class="btn-primary" id="downloadBtn">ดาวน์โหลดเป็น PNG</button>
+      <button class="btn-ghost" id="sharpenToggleBtn" aria-pressed="false">เพิ่มความคมชัด (Sharpen): ปิด</button>
+      <button class="btn-ghost" id="exportCBtn">Export เป็น .c (RGB565)</button>
+      <button class="btn-ghost" id="recropBtn">ครอบใหม่</button>
+      <button class="btn-ghost" id="restartFromResultBtn">เลือกรูปใหม่</button>
+    </div>
+    <p class="note">รูปด้านบนแสดงที่ 1 pixel ของรูป = 1 pixel จอจริงเสมอ — ระบบชดเชยให้อัตโนมัติตามระดับซูมของ Chrome ที่ตั้งไว้ (ไม่ต้องปรับซูมเองแล้ว)</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  const MAX_W = 300, MAX_H = 220;
+  const ACCENT = '#e8a33d';
+
+  const importBtn = document.getElementById('importBtn');
+  const pasteBtn = document.getElementById('pasteBtn');
+  const fileInput = document.getElementById('fileInput');
+  const importSection = document.getElementById('importSection');
+  const cropSection = document.getElementById('cropSection');
+  const appShellEl = document.querySelector('.app-shell');
+  const resultSection = document.getElementById('resultSection');
+  const pill1 = document.getElementById('pill1'), pill2 = document.getElementById('pill2'), pill3 = document.getElementById('pill3');
+
+  const editCanvas = document.getElementById('editCanvas');
+  const editCtx = editCanvas.getContext('2d');
+  const originalInfo = document.getElementById('originalInfo');
+  const selectionInfo = document.getElementById('selectionInfo');
+  const confirmCropBtn = document.getElementById('confirmCropBtn');
+  const useFullImageBtn = document.getElementById('useFullImageBtn');
+  const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+  const restartFromCropBtn = document.getElementById('restartFromCropBtn');
+
+  const resultCanvas = document.getElementById('resultCanvas');
+  const resultInfo = document.getElementById('resultInfo');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const sharpenToggleBtn = document.getElementById('sharpenToggleBtn');
+  const exportCBtn = document.getElementById('exportCBtn');
+  const recropBtn = document.getElementById('recropBtn');
+  const restartFromResultBtn = document.getElementById('restartFromResultBtn');
+
+  let originalImage = null;
+  let originalFileName = '';
+  let naturalWidth = 0, naturalHeight = 0;
+  let resultBaseImageData = null; // pristine (pre-sharpen) pixels of the current result
+  let sharpenEnabled = false;
+  let displayScale = 1;
+  let selection = null; // {x,y,w,h} in edit-canvas pixel coords
+  let dragging = false, startX = 0, startY = 0;
+  let currentStep = 1;
+
+  function showSection(step){
+    currentStep = step;
+    importSection.classList.toggle('hidden', step!==1);
+    cropSection.classList.toggle('hidden', step!==2);
+    resultSection.classList.toggle('hidden', step!==3);
+    pill1.classList.toggle('active', step===1);
+    pill2.classList.toggle('active', step===2);
+    pill3.classList.toggle('active', step===3);
+    pill1.classList.toggle('done', step>1);
+    pill2.classList.toggle('done', step>2);
+  }
+
+  importBtn.addEventListener('click', () => fileInput.click());
+
+  function loadImageFromBlob(blob, sourceLabel, fileName){
+    if(!blob || !blob.type || !blob.type.startsWith('image/')){
+      alert('ไม่พบรูปภาพ' + (sourceLabel ? 'ใน' + sourceLabel : '') + ' กรุณาลองใหม่');
+      return;
+    }
+    originalFileName = fileName || (blob.name) || '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        originalImage = img;
+        naturalWidth = img.naturalWidth;
+        naturalHeight = img.naturalHeight;
+        showSection(2);
+        setupEditCanvas();
+      };
+      img.onerror = () => alert('ไม่สามารถโหลดรูปภาพนี้ได้');
+      img.src = ev.target.result;
+    };
+    reader.onerror = () => alert('ไม่สามารถอ่านไฟล์รูปภาพนี้ได้');
+    reader.readAsDataURL(blob);
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    if(!file.type.startsWith('image/')){
+      alert('ไฟล์ที่เลือกไม่ใช่รูปภาพ กรุณาเลือกไฟล์รูปภาพ');
+      fileInput.value = '';
+      return;
+    }
+    loadImageFromBlob(file);
+    fileInput.value = '';
+  });
+
+  // Paste with Ctrl+V / Cmd+V while on the import step
+  document.addEventListener('paste', (e) => {
+    if(currentStep !== 1) return;
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    let imageItem = null;
+    for(const item of items){
+      if(item.type && item.type.startsWith('image/')){ imageItem = item; break; }
+    }
+    if(!imageItem) return;
+    e.preventDefault();
+    loadImageFromBlob(imageItem.getAsFile(), 'คลิปบอร์ด');
+  });
+
+  // Paste via button (useful on mobile / when the keyboard shortcut isn't convenient)
+  pasteBtn.addEventListener('click', async () => {
+    try{
+      if(!navigator.clipboard || !navigator.clipboard.read){
+        alert('เบราว์เซอร์นี้ไม่รองรับปุ่มวางรูป กรุณาใช้ Ctrl+V (หรือ Cmd+V บน Mac) แทน');
+        return;
+      }
+      const clipItems = await navigator.clipboard.read();
+      let found = null;
+      for(const item of clipItems){
+        const type = item.types.find(t => t.startsWith('image/'));
+        if(type){ found = await item.getType(type); break; }
+      }
+      if(!found){
+        alert('ไม่พบรูปภาพในคลิปบอร์ด กรุณาคัดลอกรูปก่อนแล้วลองใหม่');
+        return;
+      }
+      loadImageFromBlob(found, 'คลิปบอร์ด');
+    }catch(err){
+      alert('ไม่สามารถเข้าถึงคลิปบอร์ดได้ กรุณาใช้ Ctrl+V (หรือ Cmd+V บน Mac) แทน');
+    }
+  });
+
+  function setupEditCanvas(){
+    const maxW = Math.max(240, (appShellEl.clientWidth || 900) - 44);
+    const maxH = Math.max(320, Math.min(window.innerHeight - 340, 900));
+    displayScale = Math.min(maxW / naturalWidth, maxH / naturalHeight, 1);
+    editCanvas.width = Math.max(1, Math.round(naturalWidth * displayScale));
+    editCanvas.height = Math.max(1, Math.round(naturalHeight * displayScale));
+    editCanvas.style.width = editCanvas.width + 'px';
+    editCanvas.style.height = editCanvas.height + 'px';
+    selection = null;
+    confirmCropBtn.disabled = true;
+    originalInfo.innerHTML = `ต้นฉบับ: <b>${naturalWidth} × ${naturalHeight} px</b> &nbsp;|&nbsp; แสดงผลที่ ${Math.round(displayScale*100)}% เพื่อการครอบ`;
+    selectionInfo.textContent = 'ลากเมาส์ (หรือแตะค้างแล้วลาก) เพื่อเลือกพื้นที่ที่จะครอบ — ถ้ารูปนี้ไม่ต้องครอบ กด "ใช้รูปเต็ม" ได้เลย';
+    redrawEditCanvas();
+  }
+
+  function redrawEditCanvas(){
+    editCtx.clearRect(0,0,editCanvas.width, editCanvas.height);
+    editCtx.drawImage(originalImage, 0, 0, editCanvas.width, editCanvas.height);
+    if(selection && selection.w > 0 && selection.h > 0){
+      const {x,y,w,h} = selection;
+      editCtx.fillStyle = 'rgba(0,0,0,0.55)';
+      editCtx.fillRect(0,0, editCanvas.width, y);
+      editCtx.fillRect(0, y+h, editCanvas.width, editCanvas.height-(y+h));
+      editCtx.fillRect(0, y, x, h);
+      editCtx.fillRect(x+w, y, editCanvas.width-(x+w), h);
+
+      editCtx.strokeStyle = ACCENT;
+      editCtx.lineWidth = 1;
+      editCtx.setLineDash([4,3]);
+      editCtx.strokeRect(x+0.5, y+0.5, w-1, h-1);
+      editCtx.setLineDash([]);
+
+      drawCornerBrackets(editCtx, selection);
+    }
+  }
+
+  function drawCornerBrackets(ctx, r){
+    const len = Math.max(6, Math.min(16, r.w/2, r.h/2));
+    const t = 3;
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = t;
+    ctx.lineCap = 'square';
+    const {x,y,w,h} = r;
+    ctx.beginPath(); ctx.moveTo(x, y+len); ctx.lineTo(x,y); ctx.lineTo(x+len,y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+w-len, y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+len); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y+h-len); ctx.lineTo(x,y+h); ctx.lineTo(x+len,y+h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+w-len,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y+h-len); ctx.stroke();
+  }
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  function pointerPos(e){
+    const rect = editCanvas.getBoundingClientRect();
+    const scaleX = editCanvas.width / rect.width;
+    const scaleY = editCanvas.height / rect.height;
+    return {
+      x: clamp((e.clientX - rect.left) * scaleX, 0, editCanvas.width),
+      y: clamp((e.clientY - rect.top) * scaleY, 0, editCanvas.height)
+    };
+  }
+
+  function normalizeRect(x1,y1,x2,y2){
+    return { x: Math.min(x1,x2), y: Math.min(y1,y2), w: Math.abs(x2-x1), h: Math.abs(y2-y1) };
+  }
+
+  function updateSelectionInfo(){
+    if(!selection || selection.w < 2 || selection.h < 2){
+      selectionInfo.textContent = 'ลากเมาส์ (หรือแตะค้างแล้วลาก) เพื่อเลือกพื้นที่ที่จะครอบ — ถ้ารูปนี้ไม่ต้องครอบ กด "ใช้รูปเต็ม" ได้เลย';
+      confirmCropBtn.disabled = true;
+      return;
+    }
+    const realW = Math.round(selection.w / displayScale);
+    const realH = Math.round(selection.h / displayScale);
+    selectionInfo.innerHTML = `พื้นที่ที่เลือก: <b>${realW} × ${realH} px</b> (พิกเซลจริงของต้นฉบับ)`;
+    confirmCropBtn.disabled = false;
+  }
+
+  editCanvas.addEventListener('pointerdown', (e) => {
+    const p = pointerPos(e);
+    startX = p.x; startY = p.y;
+    dragging = true;
+    selection = { x: startX, y: startY, w: 0, h: 0 };
+    editCanvas.setPointerCapture(e.pointerId);
+    redrawEditCanvas();
+  });
+  editCanvas.addEventListener('pointermove', (e) => {
+    if(!dragging) return;
+    const p = pointerPos(e);
+    selection = normalizeRect(startX, startY, p.x, p.y);
+    redrawEditCanvas();
+    updateSelectionInfo();
+  });
+  editCanvas.addEventListener('pointerup', () => { dragging = false; });
+  editCanvas.addEventListener('pointercancel', () => { dragging = false; });
+
+  clearSelectionBtn.addEventListener('click', () => {
+    selection = null;
+    redrawEditCanvas();
+    updateSelectionInfo();
+  });
+
+  confirmCropBtn.addEventListener('click', () => {
+    if(!selection || selection.w < 2 || selection.h < 2) return;
+    let sx = Math.round(selection.x / displayScale);
+    let sy = Math.round(selection.y / displayScale);
+    let sw = Math.round(selection.w / displayScale);
+    let sh = Math.round(selection.h / displayScale);
+    sx = clamp(sx, 0, naturalWidth-1);
+    sy = clamp(sy, 0, naturalHeight-1);
+    sw = clamp(sw, 1, naturalWidth - sx);
+    sh = clamp(sh, 1, naturalHeight - sy);
+    processCropAndResize(sx, sy, sw, sh);
+  });
+
+  useFullImageBtn.addEventListener('click', () => {
+    processCropAndResize(0, 0, naturalWidth, naturalHeight);
+  });
+
+  function drawResizedStepDown(img, sx, sy, sw, sh, destW, destH){
+    // Progressive halving instead of one big jump: much sharper for large downscale ratios.
+    let curW = sw, curH = sh;
+    let curCanvas = document.createElement('canvas');
+    curCanvas.width = curW; curCanvas.height = curH;
+    let curCtx = curCanvas.getContext('2d');
+    curCtx.imageSmoothingEnabled = true;
+    curCtx.imageSmoothingQuality = 'high';
+    curCtx.drawImage(img, sx, sy, sw, sh, 0, 0, curW, curH);
+
+    while(curW / 2 >= destW && curH / 2 >= destH){
+      const nextW = Math.max(destW, Math.round(curW / 2));
+      const nextH = Math.max(destH, Math.round(curH / 2));
+      if(nextW === curW && nextH === curH) break;
+      const nextCanvas = document.createElement('canvas');
+      nextCanvas.width = nextW; nextCanvas.height = nextH;
+      const nextCtx = nextCanvas.getContext('2d');
+      nextCtx.imageSmoothingEnabled = true;
+      nextCtx.imageSmoothingQuality = 'high';
+      nextCtx.drawImage(curCanvas, 0, 0, curW, curH, 0, 0, nextW, nextH);
+      curCanvas = nextCanvas; curW = nextW; curH = nextH;
+    }
+
+    if(curW === destW && curH === destH) return curCanvas;
+
+    const destCanvas = document.createElement('canvas');
+    destCanvas.width = destW; destCanvas.height = destH;
+    const destCtx = destCanvas.getContext('2d');
+    destCtx.imageSmoothingEnabled = true;
+    destCtx.imageSmoothingQuality = 'high';
+    destCtx.drawImage(curCanvas, 0, 0, curW, curH, 0, 0, destW, destH);
+    return destCanvas;
+  }
+
+  function clamp255(v){ return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
+  function boxBlurData(src, w, h, radius){
+    // separable box blur (horizontal pass then vertical pass) — cheap stand-in for a gaussian blur
+    const tmp = new Uint8ClampedArray(src.length);
+    const out = new Uint8ClampedArray(src.length);
+    for(let y = 0; y < h; y++){
+      for(let x = 0; x < w; x++){
+        let r=0,g=0,b=0,a=0,count=0;
+        for(let dx = -radius; dx <= radius; dx++){
+          const xx = Math.min(w-1, Math.max(0, x+dx));
+          const idx = (y*w + xx) * 4;
+          r += src[idx]; g += src[idx+1]; b += src[idx+2]; a += src[idx+3];
+          count++;
+        }
+        const oidx = (y*w + x) * 4;
+        tmp[oidx]=r/count; tmp[oidx+1]=g/count; tmp[oidx+2]=b/count; tmp[oidx+3]=a/count;
+      }
+    }
+    for(let x = 0; x < w; x++){
+      for(let y = 0; y < h; y++){
+        let r=0,g=0,b=0,a=0,count=0;
+        for(let dy = -radius; dy <= radius; dy++){
+          const yy = Math.min(h-1, Math.max(0, y+dy));
+          const idx = (yy*w + x) * 4;
+          r += tmp[idx]; g += tmp[idx+1]; b += tmp[idx+2]; a += tmp[idx+3];
+          count++;
+        }
+        const oidx = (y*w + x) * 4;
+        out[oidx]=r/count; out[oidx+1]=g/count; out[oidx+2]=b/count; out[oidx+3]=a/count;
+      }
+    }
+    return out;
+  }
+
+  function renderResultCanvas(){
+    if(!resultBaseImageData) return;
+    const w = resultBaseImageData.width, h = resultBaseImageData.height;
+    const ctx = resultCanvas.getContext('2d');
+    if(!sharpenEnabled){
+      ctx.putImageData(resultBaseImageData, 0, 0);
+      return;
+    }
+    const src = resultBaseImageData.data;
+    const blurred = boxBlurData(src, w, h, 1);
+    const AMOUNT = 0.6;
+    const out = new Uint8ClampedArray(src.length);
+    for(let i = 0; i < src.length; i += 4){
+      out[i]   = clamp255(src[i]   + AMOUNT * (src[i]   - blurred[i]));
+      out[i+1] = clamp255(src[i+1] + AMOUNT * (src[i+1] - blurred[i+1]));
+      out[i+2] = clamp255(src[i+2] + AMOUNT * (src[i+2] - blurred[i+2]));
+      out[i+3] = src[i+3];
+    }
+    ctx.putImageData(new ImageData(out, w, h), 0, 0);
+  }
+
+  sharpenToggleBtn.addEventListener('click', () => {
+    sharpenEnabled = !sharpenEnabled;
+    sharpenToggleBtn.textContent = 'เพิ่มความคมชัด (Sharpen): ' + (sharpenEnabled ? 'เปิด' : 'ปิด');
+    sharpenToggleBtn.classList.toggle('active', sharpenEnabled);
+    sharpenToggleBtn.setAttribute('aria-pressed', String(sharpenEnabled));
+    renderResultCanvas();
+  });
+
+  // ---- Keep the result canvas truly 1 image-pixel = 1 physical screen pixel,
+  // regardless of Chrome's page zoom (zoom changes devicePixelRatio, which the
+  // browser then uses to stretch a fixed-size canvas bitmap across more/fewer
+  // physical pixels). We counter that by sizing the canvas in CSS px as
+  // (pixel count / current devicePixelRatio), so the two scale factors cancel out.
+  function applyPixelPerfectResultSizing(){
+    const dpr = window.devicePixelRatio || 1;
+    const w = resultCanvas.width, h = resultCanvas.height;
+    resultCanvas.style.width = (w / dpr) + 'px';
+    resultCanvas.style.height = (h / dpr) + 'px';
+  }
+
+  // Re-apply whenever devicePixelRatio changes (browser zoom, moving the window
+  // to a different-DPI monitor, etc). matchMedia + resubscribing on each change
+  // is the standard reliable way to watch devicePixelRatio, since it can change
+  // without a plain window 'resize' event firing in every browser/version.
+  function watchDevicePixelRatioChanges(callback){
+    let mql = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    function handler(){
+      callback();
+      mql.removeEventListener('change', handler);
+      mql = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      mql.addEventListener('change', handler);
+    }
+    mql.addEventListener('change', handler);
+  }
+  watchDevicePixelRatioChanges(() => {
+    if(resultBaseImageData) applyPixelPerfectResultSizing();
+  });
+
+  function processCropAndResize(sx, sy, sw, sh){
+    // resize: only shrink to fit within 300x220, never upscale, keep aspect ratio
+    let scale = 1;
+    if(sw > MAX_W || sh > MAX_H){
+      scale = Math.min(MAX_W / sw, MAX_H / sh);
+    }
+    const finalW = Math.max(1, Math.round(sw * scale));
+    const finalH = Math.max(1, Math.round(sh * scale));
+
+    const resizedCanvas = drawResizedStepDown(originalImage, sx, sy, sw, sh, finalW, finalH);
+
+    resultCanvas.width = finalW;
+    resultCanvas.height = finalH;
+    applyPixelPerfectResultSizing();
+    resultBaseImageData = resizedCanvas.getContext('2d').getImageData(0, 0, finalW, finalH);
+    renderResultCanvas();
+
+    const scaledNote = scale < 1 ? ' (ย่อจาก ' + sw + '×' + sh + ' px เพื่อให้อยู่ในกรอบ 300×220)' : ' (ไม่ต้องย่อ ขนาดเดิมอยู่ในกรอบ 300×220 แล้ว)';
+    resultInfo.innerHTML = `ขนาดผลลัพธ์: <b>${finalW} × ${finalH} px</b>${scaledNote}`;
+    showSection(3);
+  }
+
+  downloadBtn.addEventListener('click', () => {
+    resultCanvas.toBlob((blob) => {
+      if(!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cropped_${resultCanvas.width}x${resultCanvas.height}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+
+  // ---- Export as a .c RGB565 array (same format as an Image.c-style source) ----
+  const EXPORT_VAR_NAME = 'gf2';
+
+  function buildRgb565CSource(canvas, varName){
+    const w = canvas.width, h = canvas.height;
+    const ctx = canvas.getContext('2d');
+    const data = ctx.getImageData(0, 0, w, h).data; // RGBA, straight (non-premultiplied) alpha
+    const total = w * h;
+    const values = new Array(total);
+    for(let i = 0; i < total; i++){
+      const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+      values[i] = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+    }
+    const perLine = 80;
+    const lines = [];
+    for(let i = 0; i < values.length; i += perLine){
+      const chunk = values.slice(i, i + perLine);
+      const isLast = (i + perLine) >= values.length;
+      let line = '    ' + chunk.map(v => '0x' + v.toString(16).padStart(4, '0')).join(', ');
+      if(!isLast) line += ', ';
+      lines.push(line);
+    }
+    return `\n\n//\n\n\nconst uint16_t ${varName}[] PROGMEM = {\n${lines.join('\n')}\n};\n`
+      + `const uint16_t ${varName}_w=${w};\nconst uint16_t ${varName}_h=${h};\n`;
+  }
+
+  exportCBtn.addEventListener('click', () => {
+    const varName = EXPORT_VAR_NAME;
+    const source = buildRgb565CSource(resultCanvas, varName);
+    const blob = new Blob([source], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${varName}.c`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  recropBtn.addEventListener('click', () => {
+    showSection(2);
+    setupEditCanvas();
+  });
+
+  function fullReset(){
+    originalImage = null;
+    originalFileName = '';
+    selection = null;
+    resultBaseImageData = null;
+    sharpenEnabled = false;
+    sharpenToggleBtn.textContent = 'เพิ่มความคมชัด (Sharpen): ปิด';
+    sharpenToggleBtn.classList.remove('active');
+    sharpenToggleBtn.setAttribute('aria-pressed', 'false');
+    fileInput.value = '';
+    showSection(1);
+  }
+  restartFromCropBtn.addEventListener('click', fullReset);
+  restartFromResultBtn.addEventListener('click', fullReset);
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if(currentStep !== 2 || !originalImage) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(setupEditCanvas, 150);
+  });
+})();
+</script>
+</body>
+</html>
